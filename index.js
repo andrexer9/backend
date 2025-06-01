@@ -1,59 +1,51 @@
 const express = require('express');
-const bodyParser = require('body-parser');
-const fetch = require('node-fetch');
+const axios = require('axios');
+const { GoogleAuth } = require('google-auth-library');
+require('dotenv').config();
+
 const app = express();
-const PORT = process.env.PORT || 10000;
+app.use(express.json());
 
-// Clave del servidor FCM Legacy (¡no compartas esta clave en público!)
-const FCM_SERVER_KEY = 'CJ7ME0zIQfbL06V1dzCmpZ85s74x4G5Ab1zJCR7GvS4';
-
-// Middleware
-app.use(bodyParser.json());
-
-// Ruta para verificar estado
-app.get('/', (req, res) => {
-  res.send('Servidor de notificaciones activo 🚀');
+const auth = new GoogleAuth({
+  keyFile: 'service_account.json', // tu archivo descargado desde Firebase
+  scopes: ['https://www.googleapis.com/auth/firebase.messaging']
 });
 
-// Ruta para enviar notificación
-app.post('/send-notification', async (req, res) => {
-  const { tokens, titulo, cuerpo } = req.body;
-
-  if (!tokens || tokens.length === 0) {
-    return res.status(400).json({ error: 'No se proporcionaron tokens' });
-  }
+app.post('/sendNotification', async (req, res) => {
+  const { token, title, body } = req.body;
 
   try {
-    for (const token of tokens) {
-      const response = await fetch('https://fcm.googleapis.com/v1/projects/253977310621/messages:send', {
-    method: 'POST',
-    headers: {
-        'Authorization': `Bearer ${accessToken}`, // Obtenido desde tu JWT
-        'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
+    const client = await auth.getClient();
+    const accessToken = await client.getAccessToken();
+
+    const response = await axios.post(
+      `https://fcm.googleapis.com/v1/projects/${process.env.FIREBASE_PROJECT_ID}/messages:send`,
+      {
         message: {
-            token: token,
-            notification: {
-                title: titulo,
-                body: cuerpo
-            }
+          token,
+          notification: {
+            title,
+            body
+          }
         }
-    })
-});
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken.token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
 
-      const resultado = await respuesta.json();
-      console.log(`Resultado para token ${token}:`, resultado);
-    }
-
-    res.status(200).json({ message: 'Notificaciones enviadas' });
+    res.status(200).json({ success: true, response: response.data });
   } catch (error) {
-    console.error('Error al enviar notificación:', error);
-    res.status(500).json({ error: 'Fallo al enviar notificación' });
+    console.error(error.response?.data || error.message);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Servidor corriendo en el puerto ${PORT}`);
+  console.log(`Servidor corriendo en puerto ${PORT}`);
 });
 
