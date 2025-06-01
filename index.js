@@ -1,57 +1,40 @@
 const express = require('express');
+const admin = require('firebase-admin');
 const bodyParser = require('body-parser');
-const fetch = require('node-fetch');
-const app = express();
-const PORT = process.env.PORT || 10000;
+const serviceAccount = require('./service_account.json');
 
-// Clave del servidor FCM Legacy (¡no compartas esta clave en público!)
-const FCM_SERVER_KEY = 'CJ7ME0zIQfbL06V1dzCmpZ85s74x4G5Ab1zJCR7GvS4';
-
-// Middleware
-app.use(bodyParser.json());
-
-// Ruta para verificar estado
-app.get('/', (req, res) => {
-  res.send('Servidor de notificaciones activo 🚀');
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
 });
 
-// Ruta para enviar notificación
+const app = express();
+app.use(bodyParser.json());
+
 app.post('/send-notification', async (req, res) => {
   const { tokens, titulo, cuerpo } = req.body;
 
-  if (!tokens || tokens.length === 0) {
-    return res.status(400).json({ error: 'No se proporcionaron tokens' });
+  if (!tokens || !titulo || !cuerpo) {
+    return res.status(400).json({ error: 'Faltan parámetros requeridos' });
   }
 
-  try {
-    for (const token of tokens) {
-      const respuesta = await fetch('https://fcm.googleapis.com/v1/projects/253977310621/messages:send', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `key=${FCM_SERVER_KEY}`,
-        },
-        body: JSON.stringify({
-          to: token,
-          notification: {
-            title: titulo,
-            body: cuerpo,
-          },
-          priority: 'high',
-        }),
-      });
-
-      const resultado = await respuesta.json();
-      console.log(`Resultado para token ${token}:`, resultado);
+  const payload = {
+    notification: {
+      title: titulo,
+      body: cuerpo,
     }
+  };
 
-    res.status(200).json({ message: 'Notificaciones enviadas' });
+  try {
+    const response = await admin.messaging().sendToDevice(tokens, payload);
+    console.log('Notificación enviada:', response);
+    res.status(200).json({ message: 'Notificaciones enviadas', response });
   } catch (error) {
     console.error('Error al enviar notificación:', error);
-    res.status(500).json({ error: 'Fallo al enviar notificación' });
+    res.status(500).json({ error: 'Falló el envío de notificaciones', details: error });
   }
 });
 
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en el puerto ${PORT}`);
 });
