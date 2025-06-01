@@ -25,7 +25,7 @@ app.post('/send-notification', async (req, res) => {
 
   try {
     for (const token of tokens) {
-      const respuesta = await fetch('https://fcm.googleapis.com/fcm/send', {
+      const respuesta = await fetch('https://fcm.googleapis.com/v1/projects/253977310621/messages:send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
