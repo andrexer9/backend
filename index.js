@@ -1,40 +1,40 @@
 const express = require('express');
 const admin = require('firebase-admin');
-const bodyParser = require('body-parser');
-const serviceAccount = require('./service_account.json');
+const app = express();
+const port = process.env.PORT || 3000;
+
+app.use(express.json());
+
+// Inicializar Firebase Admin SDK
+const serviceAccount = require('/etc/secrets/service_account.json');
 
 admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
+  credential: admin.credential.cert(serviceAccount),
 });
 
-const app = express();
-app.use(bodyParser.json());
-
+// Ruta para enviar notificaciones
 app.post('/send-notification', async (req, res) => {
-  const { tokens, titulo, cuerpo } = req.body;
+  const { tokens, title, body } = req.body;
 
-  if (!tokens || !titulo || !cuerpo) {
-    return res.status(400).json({ error: 'Faltan parámetros requeridos' });
-  }
-
-  const payload = {
-    notification: {
-      title: titulo,
-      body: cuerpo,
-    }
+  const message = {
+    notification: { title, body },
+    tokens: tokens,
   };
 
   try {
-    const response = await admin.messaging().sendToDevice(tokens, payload);
-    console.log('Notificación enviada:', response);
-    res.status(200).json({ message: 'Notificaciones enviadas', response });
+    const response = await admin.messaging().sendMulticast(message);
+    res.status(200).send(response);
   } catch (error) {
     console.error('Error al enviar notificación:', error);
-    res.status(500).json({ error: 'Falló el envío de notificaciones', details: error });
+    res.status(500).send({ error: 'Fallo al enviar notificación' });
   }
 });
 
-const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en el puerto ${PORT}`);
+app.get('/', (req, res) => {
+  res.send('Backend de notificaciones listo');
 });
+
+app.listen(port, () => {
+  console.log(`Servidor corriendo en el puerto ${port}`);
+});
+
