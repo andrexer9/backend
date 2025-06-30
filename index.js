@@ -12,10 +12,15 @@ const auth = new GoogleAuth({
 });
 
 app.post('/sendNotification', async (req, res) => {
-  const { tokens, title, body } = req.body;
+  let tokens = req.body.tokens;
+  const { token, title, body } = req.body;
 
-  if (!tokens || !Array.isArray(tokens) || tokens.length === 0) {
-    return res.status(400).json({ success: false, error: 'Se requiere una lista de tokens válida.' });
+  if (!tokens) {
+    if (token) {
+      tokens = [token];
+    } else {
+      return res.status(400).json({ success: false, error: 'Se requiere al menos un token.' });
+    }
   }
 
   try {
@@ -24,13 +29,13 @@ app.post('/sendNotification', async (req, res) => {
 
     const results = [];
 
-    for (const token of tokens) {
+    for (const t of tokens) {
       try {
         const response = await axios.post(
           `https://fcm.googleapis.com/v1/projects/${process.env.FIREBASE_PROJECT_ID}/messages:send`,
           {
             message: {
-              token,
+              token: t,
               notification: {
                 title,
                 body
@@ -44,10 +49,10 @@ app.post('/sendNotification', async (req, res) => {
             }
           }
         );
-        results.push({ token, status: 'ok', response: response.data });
+        results.push({ token: t, status: 'ok', response: response.data });
       } catch (err) {
         results.push({
-          token,
+          token: t,
           status: 'error',
           error: err.response?.data || err.message
         });
